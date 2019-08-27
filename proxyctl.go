@@ -34,6 +34,7 @@ type Policy struct {
 	// Only proxy traffic which remote address matches the given IP. (Optional)
 	RemoteAddr net.IP
 
+	// The priority of this policy. (Optional)
 	// See https://docs.microsoft.com/en-us/windows/win32/fwp/filter-weight-assignment.
 	Priority uint8
 
@@ -45,13 +46,13 @@ type Policy struct {
 // AddPolicy adds a layer-4 proxy policy to HNS. The endpointID refers to the
 // ID of the endpoint as defined by HNS (eg. the GUID output by hnsdiag).
 // An error is returned if the policy passed in argument is invalid, or if it
-// couldn't be applied for some reason.
-func AddPolicy(endpointID string, policy *Policy) error {
+// couldn't be applied for any reason.
+func AddPolicy(endpointID string, policy Policy) error {
 	if err := validatePolicy(policy); err != nil {
 		return err
 	}
 
-	// The protocol defaults to TCP and it's the only supported protocol anyway.
+	// TCP is the default protocol and is the only supported one anyway.
 	policy.Protocol = TCP
 
 	policySetting := hcn.L4ProxyPolicySetting{
@@ -89,11 +90,53 @@ func AddPolicy(endpointID string, policy *Policy) error {
 	return endpoint.ApplyPolicy(hcn.RequestTypeAdd, request)
 }
 
+// GetPolicies returns the proxy policies that are currently active on the
+// given endpoint.
+func GetPolicies(endpointID string) ([]Policy, error) {
+	endpoint, err := hcn.GetEndpointByID(endpointID)
+	if err != nil {
+		return nil, err
+	}
+
+	var policies []Policy
+	for _, hcnPolicy := range endpoint.Policies {
+		if hcnPolicy.Type == hcn.L4Proxy {
+			policies = append(policies, hcnPolicyToAPIPolicy(hcnPolicy))
+		}
+	}
+
+	return policies, nil
+}
+
+// hcnPolicyToAPIPolicy converts an L4 proxy policy as defined by hcsshim
+// to our own API.
+func hcnPolicyToAPIPolicy(hcnPolicy hcn.EndpointPolicy) Policy {
+	if hcnPolicy.Type != hcn.L4Proxy {
+		panic("not an L4 proxy policy")
+	}
+
+	var hcnPolicySetting hcn.L4ProxyPolicySetting
+	json.Unmarshal(hcnPolicy.Settings, &hcnPolicySetting)
+
+	port, _ := strconv.Atoi(hcnPolicySetting.Port)
+	protocol, _ := strconv.Atoi(hcnPolicySetting.FilterTuple.Protocols)
+
+	return Policy{
+		Port:          uint16(port),
+		UserSID:       hcnPolicySetting.UserSID,
+		CompartmentID: hcnPolicySetting.CompartmentID,
+		LocalAddr:     net.ParseIP(hcnPolicySetting.FilterTuple.LocalAddresses),
+		RemoteAddr:    net.ParseIP(hcnPolicySetting.FilterTuple.RemoteAddresses),
+		Priority:      uint8(hcnPolicySetting.FilterTuple.Priority),
+		Protocol:      Protocol(protocol),
+	}
+}
+
 // validatePolicy returns nil iff the provided policy is valid.
 // For now it only checks that the port number is nonzero.
-func validatePolicy(policy *Policy) error {
+func validatePolicy(policy Policy) error {
 	if policy.Port == 0 {
-		return errors.New("policy: invalid port number 0")
+		return errors.New("policy has invalid port number 0")
 	}
 	return nil
 }
