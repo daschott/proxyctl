@@ -1,9 +1,12 @@
 package proxyctl
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"net"
+	"os/exec"
 	"strconv"
 
 	"github.com/Microsoft/hcsshim/hcn"
@@ -35,7 +38,7 @@ type Policy struct {
 	RemoteAddr net.IP
 
 	// The priority of this policy. (Optional)
-	// See https://docs.microsoft.com/en-us/windows/win32/fwp/filter-weight-assignment.
+	// For more info, see https://docs.microsoft.com/en-us/windows/win32/fwp/filter-weight-assignment.
 	Priority uint8
 
 	// Only proxy traffic matching this protocol. TCP is the only supported
@@ -46,8 +49,8 @@ type Policy struct {
 // AddPolicy adds a layer-4 proxy policy to HNS. The endpointID refers to the
 // ID of the endpoint as defined by HNS (eg. the GUID output by hnsdiag).
 // An error is returned if the policy passed in argument is invalid, or if it
-// couldn't be applied for any reason.
-func AddPolicy(endpointID string, policy Policy) error {
+// could not be applied for any reason.
+func AddPolicy(hnsEndpointID string, policy Policy) error {
 	if err := validatePolicy(policy); err != nil {
 		return err
 	}
@@ -82,9 +85,9 @@ func AddPolicy(endpointID string, policy Policy) error {
 		Policies: []hcn.EndpointPolicy{endpointPolicy},
 	}
 
-	endpoint, err := hcn.GetEndpointByID(endpointID)
+	endpoint, err := hcn.GetEndpointByID(hnsEndpointID)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	return endpoint.ApplyPolicy(hcn.RequestTypeAdd, request)
@@ -92,8 +95,8 @@ func AddPolicy(endpointID string, policy Policy) error {
 
 // GetPolicies returns the proxy policies that are currently active on the
 // given endpoint.
-func GetPolicies(endpointID string) ([]Policy, error) {
-	endpoint, err := hcn.GetEndpointByID(endpointID)
+func GetPolicies(hnsEndpointID string) ([]Policy, error) {
+	endpoint, err := hcn.GetEndpointByID(hnsEndpointID)
 	if err != nil {
 		return nil, err
 	}
@@ -108,6 +111,68 @@ func GetPolicies(endpointID string) ([]Policy, error) {
 	return policies, nil
 }
 
+// GetEndpointFromContainer takes a Docker container ID as argument and returns
+// the ID of the HNS endpoint to which it is attached. It returns an error if
+// the specified container is not attached to any endpoint. Note that there is
+// no verification done regarding whether the ID passed as argument belongs
+// to an actual container.
+func GetEndpointFromContainer(containerID string) (hnsEndpointID string, err error) {
+	// Call hnsdiag to get a list of endpoints and the containers they're attached to.
+
+	var hnsOut bytes.Buffer
+	hnsCmd := exec.Command("hnsdiag", "list", "endpoints", "-df")
+	hnsCmd.Stdout = &hnsOut
+	if err = hnsCmd.Run(); err != nil {
+		return
+	}
+
+	// hnsdiag doesn't return a proper JSON list, instead it's a bunch of
+	// objects concatenated to each other, so we have to implement our own
+	// parsing logic to split those up. We assume that at least the separate
+	// endpoint objects are well-formed.
+
+	scanEndpointObjects := func(data []byte, atEOF bool) (advance int, token []byte, err error) {
+		endOfEndpoint := []byte("\n}")
+		if atEOF && len(data) == 0 {
+			// No more data.
+			return
+		} else if i := bytes.Index(data, endOfEndpoint); i != -1 {
+			// '}' right after a newline indicates the end of an endpoint object.
+			// We thus advance the scanner past that character and return
+			// everything before as a new token.
+			advance = i + len(endOfEndpoint) + 1
+			return advance, data[:advance], nil
+		} else {
+			// Request more data.
+			return
+		}
+	}
+
+	scanner := bufio.NewScanner(&hnsOut)
+	scanner.Split(scanEndpointObjects)
+
+	for scanner.Scan() {
+		type hnsEndpoint struct {
+			ID               string
+			SharedContainers []string
+		}
+
+		var endpoint hnsEndpoint
+		err = json.Unmarshal(scanner.Bytes(), &endpoint)
+		if err != nil {
+			panic(err)
+		}
+
+		for _, attachedID := range endpoint.SharedContainers {
+			if attachedID == containerID {
+				return endpoint.ID, nil
+			}
+		}
+	}
+
+	return "", errors.New("could not find an endpoint attached to that container")
+}
+
 // hcnPolicyToAPIPolicy converts an L4 proxy policy as defined by hcsshim
 // to our own API.
 func hcnPolicyToAPIPolicy(hcnPolicy hcn.EndpointPolicy) Policy {
@@ -118,6 +183,7 @@ func hcnPolicyToAPIPolicy(hcnPolicy hcn.EndpointPolicy) Policy {
 	var hcnPolicySetting hcn.L4ProxyPolicySetting
 	json.Unmarshal(hcnPolicy.Settings, &hcnPolicySetting)
 
+	// Assuming HNS will never return invalid values here.
 	port, _ := strconv.Atoi(hcnPolicySetting.Port)
 	protocol, _ := strconv.Atoi(hcnPolicySetting.FilterTuple.Protocols)
 
