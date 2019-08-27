@@ -20,7 +20,7 @@ const TCP Protocol = 6
 // intercepted by the proxy.
 type Policy struct {
 	// The port the proxy is listening on. (Required)
-	Port uint16
+	ProxyPort uint16
 
 	// Ignore traffic originating from that user SID. (Optional)
 	UserSID string
@@ -57,7 +57,7 @@ func AddPolicy(endpointID string, policy Policy) error {
 
 	policySetting := hcn.L4ProxyPolicySetting{
 		ProxyType:     hcn.ProxyTypeWFP,
-		Port:          strconv.Itoa(int(policy.Port)),
+		Port:          strconv.Itoa(int(policy.ProxyPort)),
 		UserSID:       policy.UserSID,
 		CompartmentID: policy.CompartmentID,
 		FilterTuple: hcn.FiveTuple{
@@ -122,7 +122,7 @@ func hcnPolicyToAPIPolicy(hcnPolicy hcn.EndpointPolicy) Policy {
 	protocol, _ := strconv.Atoi(hcnPolicySetting.FilterTuple.Protocols)
 
 	return Policy{
-		Port:          uint16(port),
+		ProxyPort:     uint16(port),
 		UserSID:       hcnPolicySetting.UserSID,
 		CompartmentID: hcnPolicySetting.CompartmentID,
 		LocalAddr:     net.ParseIP(hcnPolicySetting.FilterTuple.LocalAddresses),
@@ -135,7 +135,7 @@ func hcnPolicyToAPIPolicy(hcnPolicy hcn.EndpointPolicy) Policy {
 // validatePolicy returns nil iff the provided policy is valid.
 // For now it only checks that the port number is nonzero.
 func validatePolicy(policy Policy) error {
-	if policy.Port == 0 {
+	if policy.ProxyPort == 0 {
 		return errors.New("policy has invalid port number 0")
 	}
 	return nil
