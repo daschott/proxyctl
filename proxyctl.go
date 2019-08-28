@@ -25,23 +25,23 @@ type Policy struct {
 	// The port the proxy is listening on. (Required)
 	ProxyPort uint16
 
-	// Ignore traffic originating from that user SID. (Optional)
+	// Ignore traffic originating from the specified user SID. (Optional)
 	UserSID string
 
-	// Only proxy traffic hitting this network compartment. (Optional)
+	// Only proxy traffic originating from the specified network compartment. (Optional)
 	CompartmentID uint32
 
-	// Only proxy traffic which local address matches the given IP. (Optional)
+	// Only proxy traffic originating from the specified address. (Optional)
 	LocalAddr net.IP
 
-	// Only proxy traffic which remote address matches the given IP. (Optional)
+	// Only proxy traffic destinated to the specified address. (Optional)
 	RemoteAddr net.IP
 
 	// The priority of this policy. (Optional)
 	// For more info, see https://docs.microsoft.com/en-us/windows/win32/fwp/filter-weight-assignment.
 	Priority uint8
 
-	// Only proxy traffic matching this protocol. TCP is the only supported
+	// Only proxy traffic using this protocol. TCP is the only supported
 	// protocol for now, and this field defaults to that if left blank. (Optional)
 	Protocol Protocol
 }
@@ -93,9 +93,9 @@ func AddPolicy(hnsEndpointID string, policy Policy) error {
 	return endpoint.ApplyPolicy(hcn.RequestTypeAdd, request)
 }
 
-// GetPolicies returns the proxy policies that are currently active on the
+// ListPolicies returns the proxy policies that are currently active on the
 // given endpoint.
-func GetPolicies(hnsEndpointID string) ([]Policy, error) {
+func ListPolicies(hnsEndpointID string) ([]Policy, error) {
 	hcnPolicies, err := listPolicies(hnsEndpointID)
 	if err != nil {
 		return nil, err
@@ -144,6 +144,8 @@ func ClearPolicies(hnsEndpointID string) (numRemoved int, err error) {
 // no verification done regarding whether the ID passed as argument belongs
 // to an actual container.
 func GetEndpointFromContainer(containerID string) (hnsEndpointID string, err error) {
+	// XXX: Is there better way to do this?
+
 	// Call hnsdiag to get a list of endpoints and the containers they're attached to.
 
 	var hnsOut bytes.Buffer
@@ -158,7 +160,9 @@ func GetEndpointFromContainer(containerID string) (hnsEndpointID string, err err
 	// parsing logic to split those up. We assume that at least the separate
 	// endpoint objects are well-formed.
 
-	scanEndpointObjects := func(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	scanner := bufio.NewScanner(&hnsOut)
+
+	scanner.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
 		endOfEndpoint := []byte("\n}")
 		if atEOF && len(data) == 0 {
 			// No more data.
@@ -173,10 +177,7 @@ func GetEndpointFromContainer(containerID string) (hnsEndpointID string, err err
 			// Request more data.
 			return
 		}
-	}
-
-	scanner := bufio.NewScanner(&hnsOut)
-	scanner.Split(scanEndpointObjects)
+	})
 
 	for scanner.Scan() {
 		type hnsEndpoint struct {
