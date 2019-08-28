@@ -198,6 +198,8 @@ func GetEndpointFromContainer(containerID string) (hnsEndpointID string, err err
 		var endpoint hnsEndpoint
 		err = json.Unmarshal(scanner.Bytes(), &endpoint)
 		if err != nil {
+			// Assuming HNS returns well-formed JSON objects,
+			// if an error happened it was our fault so let's panic.
 			panic(err)
 		}
 
@@ -226,10 +228,11 @@ func hcnPolicyToAPIPolicy(hcnPolicy hcn.EndpointPolicy) Policy {
 		panic("not an L4 proxy policy")
 	}
 
-	var hcnPolicySetting hcn.L4ProxyPolicySetting
-	json.Unmarshal(hcnPolicy.Settings, &hcnPolicySetting)
+	// Assuming HNS will never return invalid values from here.
 
-	// Assuming HNS will never return invalid values here.
+	var hcnPolicySetting hcn.L4ProxyPolicySetting
+	_ = json.Unmarshal(hcnPolicy.Settings, &hcnPolicySetting)
+
 	port, _ := strconv.Atoi(hcnPolicySetting.Port)
 	protocol, _ := strconv.Atoi(hcnPolicySetting.FilterTuple.Protocols)
 
