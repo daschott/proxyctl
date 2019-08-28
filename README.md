@@ -10,7 +10,7 @@ container, such that:
 
 - Outbound TCP traffic will be redirected through port 8000
 - Only if it originates from network compartment 2
-- And unless it originates from user SID `S-1-5-18`, which is the proxy itself
+- And unless it originates from the Local System SID, which is the proxy itself
 
 ```go
 dockerContainerID := "3a9b8667e69240afe64e77db0ee4b4056e69278c3d85a9add753eaca6601da93"
@@ -18,7 +18,7 @@ hnsEndpointID, _ := proxyctl.GetEndpointFromContainer(dockerContainerID)
 
 proxyPolicy := proxyctl.Policy{
         Port: 8000,
-        UserSID: "S-1-5-18",
+        UserSID: proxyctl.LocalSystemSID,
         CompartmentID: 2,
 }
 

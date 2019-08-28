@@ -14,6 +14,14 @@ import (
 	"github.com/Microsoft/hcsshim/hcn"
 )
 
+// LocalSystemSID defines the SID of the permission set known in Windows
+// as "Local System". In a sidecar proxy deployment, users will typically run
+// the proxy container under that SID, and assign it to the UserSID field of
+// the Policy struct, to signify to HNS that traffic originating from that SID
+// should not be forwarded to the proxy -- which would create a loop, since
+// traffic originating from the proxy would be forwarded back to the proxy.
+const LocalSystemSID = "S-1-5-18"
+
 // Protocol refers to a protocol number as defined by the IANA.
 // See https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xml.
 type Protocol uint8
@@ -240,7 +248,7 @@ func hcnPolicyToAPIPolicy(hcnPolicy hcn.EndpointPolicy) Policy {
 // For now it only checks that the port number is nonzero.
 func validatePolicy(policy Policy) error {
 	if policy.ProxyPort == 0 {
-		return errors.New("policy has invalid port number 0")
+		return errors.New("policy has invalid proxy port number 0")
 	}
 	return nil
 }
