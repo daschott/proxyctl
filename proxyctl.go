@@ -1,3 +1,5 @@
+// Package proxyctl implements a high-level library that allows users to program
+// layer-4 proxy policies on Windows through the Host Networking Service (HNS).
 package proxyctl
 
 import (

@@ -1,3 +1,20 @@
+// Command proxyctl is a high-level program that allows users to program
+// layer-4 proxy policies on Windows through the Host Networking Service (HNS).
+//
+//  Usage:
+//    proxyctl.exe [command]
+//
+//    Available Commands:
+//      add         Add a proxy policy to an endpoint
+//      clear       Remove all proxy policies from an endpoint
+//      help        Help about any command
+//      list        List the proxy policies on an endpoint
+//      lookup      Report the ID of the HNS endpoint to which the specified container is attached
+//
+//    Flags:
+//      -h, --help   help for proxyctl.exe
+//
+//    Use "proxyctl.exe [command] --help" for more information about a command.
 package main
 
 import (
@@ -27,8 +44,9 @@ var (
 
 var cmdAdd = &cobra.Command{
 	Use:   "add <HNS endpoint ID>",
-	Short: "Add a proxy policy to an endpoint.",
+	Short: "Add a proxy policy to an endpoint",
 	Args:  cobra.ExactArgs(1),
+
 	Run: func(cmd *cobra.Command, args []string) {
 		endpointID := args[0]
 		policy := proxyctl.Policy{
@@ -51,8 +69,9 @@ var cmdAdd = &cobra.Command{
 
 var cmdClear = &cobra.Command{
 	Use:   "clear <HNS endpoint ID>",
-	Short: "Remove all proxy policies from an endpoint.",
+	Short: "Remove all proxy policies from an endpoint",
 	Args:  cobra.ExactArgs(1),
+
 	Run: func(cmd *cobra.Command, args []string) {
 		endpointID := args[0]
 		numRemoved, err := proxyctl.ClearPolicies(endpointID)
@@ -65,8 +84,9 @@ var cmdClear = &cobra.Command{
 
 var cmdList = &cobra.Command{
 	Use:   "list <HNS endpoint ID>",
-	Short: "List the active proxy policies on an endpoint.",
+	Short: "List the proxy policies on an endpoint",
 	Args:  cobra.ExactArgs(1),
+
 	Run: func(cmd *cobra.Command, args []string) {
 		endpointID := args[0]
 		policies, err := proxyctl.ListPolicies(endpointID)
@@ -79,8 +99,9 @@ var cmdList = &cobra.Command{
 
 var cmdLookup = &cobra.Command{
 	Use:   "lookup <docker container ID>",
-	Short: "Report the ID of the HNS endpoint to which the specified container is attached.",
+	Short: "Report the ID of the HNS endpoint to which the specified container is attached",
 	Args:  cobra.ExactArgs(1),
+
 	Run: func(cmd *cobra.Command, args []string) {
 		containerID := args[0]
 		hnsEndpointID, err := proxyctl.GetEndpointFromContainer(containerID)
