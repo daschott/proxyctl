@@ -96,19 +96,46 @@ func AddPolicy(hnsEndpointID string, policy Policy) error {
 // GetPolicies returns the proxy policies that are currently active on the
 // given endpoint.
 func GetPolicies(hnsEndpointID string) ([]Policy, error) {
-	endpoint, err := hcn.GetEndpointByID(hnsEndpointID)
+	hcnPolicies, err := listPolicies(hnsEndpointID)
 	if err != nil {
 		return nil, err
 	}
 
 	var policies []Policy
-	for _, hcnPolicy := range endpoint.Policies {
+	for _, hcnPolicy := range hcnPolicies {
 		if hcnPolicy.Type == hcn.L4Proxy {
 			policies = append(policies, hcnPolicyToAPIPolicy(hcnPolicy))
 		}
 	}
 
 	return policies, nil
+}
+
+// ClearPolicies removes all the proxy policies from the specified endpoint.
+// It returns the number of policies that were removed, which will be zero
+// if an error occurred or if the endpoint did not have any active proxy policies.
+func ClearPolicies(hnsEndpointID string) (numRemoved int, err error) {
+	policies, err := listPolicies(hnsEndpointID)
+	if err != nil {
+		return 0, err
+	}
+
+	policyReq := hcn.PolicyEndpointRequest{
+		Policies: policies,
+	}
+
+	policyJSON, err := json.Marshal(policyReq)
+	if err != nil {
+		return 0, err
+	}
+
+	modifyReq := &hcn.ModifyEndpointSettingRequest{
+		ResourceType: hcn.EndpointResourceTypePolicy,
+		RequestType:  hcn.RequestTypeRemove,
+		Settings:     policyJSON,
+	}
+
+	return len(policies), hcn.ModifyEndpointSettings(hnsEndpointID, modifyReq)
 }
 
 // GetEndpointFromContainer takes a Docker container ID as argument and returns
@@ -171,6 +198,14 @@ func GetEndpointFromContainer(containerID string) (hnsEndpointID string, err err
 	}
 
 	return "", errors.New("could not find an endpoint attached to that container")
+}
+
+func listPolicies(hnsEndpointID string) ([]hcn.EndpointPolicy, error) {
+	endpoint, err := hcn.GetEndpointByID(hnsEndpointID)
+	if err != nil {
+		return nil, err
+	}
+	return endpoint.Policies, nil
 }
 
 // hcnPolicyToAPIPolicy converts an L4 proxy policy as defined by hcsshim
