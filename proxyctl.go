@@ -154,7 +154,8 @@ func ClearPolicies(hnsEndpointID string) (numRemoved int, err error) {
 // no verification done regarding whether the ID passed as argument belongs
 // to an actual container.
 func GetEndpointFromContainer(containerID string) (hnsEndpointID string, err error) {
-	// XXX: Is there better way to do this?
+	// XXX: If possible, a better way to do this would be to patch hcsshim
+	// so that the endpoints it returns contain the SharedContainers field.
 
 	// Call hnsdiag to get a list of endpoints and the containers they're attached to.
 

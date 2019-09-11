@@ -49,6 +49,11 @@ var cmdAdd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		endpointID := args[0]
+
+		if userSID == "system" {
+			userSID = proxyctl.LocalSystemSID
+		}
+
 		policy := proxyctl.Policy{
 			ProxyPort:     proxyPort,
 			UserSID:       userSID,
@@ -123,7 +128,7 @@ func main() {
 	// Flags for the "add" command
 	cmdAdd.Flags().Uint16VarP(&proxyPort, "port", "p", 0, "port the proxy is listening on")
 	cmdAdd.MarkFlagRequired("port")
-	cmdAdd.Flags().StringVar(&userSID, "usersid", "", "ignore traffic originating from the specified user SID")
+	cmdAdd.Flags().StringVar(&userSID, "usersid", "", `ignore traffic originating from the specified user SID (pass "system" to use the Local System SID)`)
 	cmdAdd.Flags().Uint32Var(&compartmentID, "compartment", 0, "only proxy traffic originating from the specified network compartment")
 	cmdAdd.Flags().IPVar(&localAddr, "localaddr", nil, "only proxy traffic originating from the specified address")
 	cmdAdd.Flags().IPVar(&remoteAddr, "remoteaddr", nil, "only proxy traffic destinated to the specified address")

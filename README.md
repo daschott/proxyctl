@@ -1,6 +1,5 @@
 # proxyctl [![](https://godoc.org/github.com/sprt/proxyctl?status.svg)](http://godoc.org/github.com/sprt/proxyctl)
 
-
 proxyctl is a high-level library and program that allows users to program
 layer-4 proxy policies on Windows through the Host Networking Service (HNS).
 
