@@ -113,9 +113,7 @@ func ListPolicies(hnsEndpointID string) ([]Policy, error) {
 
 	var policies []Policy
 	for _, hcnPolicy := range hcnPolicies {
-		if hcnPolicy.Type == hcn.L4Proxy {
-			policies = append(policies, hcnPolicyToAPIPolicy(hcnPolicy))
-		}
+		policies = append(policies, hcnPolicyToAPIPolicy(hcnPolicy))
 	}
 
 	return policies, nil
@@ -214,12 +212,22 @@ func GetEndpointFromContainer(containerID string) (hnsEndpointID string, err err
 	return "", errors.New("could not find an endpoint attached to that container")
 }
 
+// listPolicies returns the HCN *proxy* policies that are currently active on the
+// given endpoint.
 func listPolicies(hnsEndpointID string) ([]hcn.EndpointPolicy, error) {
 	endpoint, err := hcn.GetEndpointByID(hnsEndpointID)
 	if err != nil {
 		return nil, err
 	}
-	return endpoint.Policies, nil
+
+	var policies []hcn.EndpointPolicy
+	for _, policy := range endpoint.Policies {
+		if policy.Type == hcn.L4Proxy {
+			policies = append(policies, policy)
+		}
+	}
+
+	return policies, nil
 }
 
 // hcnPolicyToAPIPolicy converts an L4 proxy policy as defined by hcsshim
